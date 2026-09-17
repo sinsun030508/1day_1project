@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>눈싸움 챌린지</title>
+  <meta name="description" content="제작자의 기록 1분 20초를 넘겨보세요. 카메라로 눈 깜빡임을 감지하는 눈싸움 게임." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <!-- 시작 화면 -->
+    <section id="screen-start" class="screen is-active">
+      <p class="eyebrow">DAY 001 · STARING CONTEST</p>
+      <h1 class="title">눈싸움<br /><span>챌린지</span></h1>
+      <p class="lead">
+        상대의 기록은 <strong class="mono">1:20.00</strong>.<br />
+        그보다 오래 눈을 뜨고 있으면 당신이 이깁니다.
+      </p>
+
+      <form id="start-form" class="start-form">
+        <label for="nickname">닉네임</label>
+        <div class="row">
+          <input id="nickname" name="nickname" maxlength="12" autocomplete="nickname" placeholder="최대 12자" required />
+          <button type="submit" class="btn btn-primary">도전하기</button>
+        </div>
+        <p class="hint">카메라 영상은 이 브라우저 안에서만 분석되며 어디에도 전송·저장되지 않습니다.</p>
+        <p id="start-error" class="error" role="alert"></p>
+      </form>
+
+      <div class="board">
+        <div class="board-head">
+          <h2>랭킹</h2>
+          <span id="board-mode" class="badge"></span>
+        </div>
+        <ol id="board-start" class="board-list"></ol>
+      </div>
+    </section>
+
+    <!-- 게임 화면 (준비 → 측정 → 진행) -->
+    <section id="screen-game" class="screen">
+      <div class="arena">
+        <figure class="fighter opponent">
+          <img id="opponent-img" src="assets/opponent.jpg" alt="상대" />
+          <div class="placeholder" aria-hidden="true">👀</div>
+          <figcaption>상대 <span class="mono">1:20.00</span></figcaption>
+        </figure>
+
+        <div class="versus">VS</div>
+
+        <figure class="fighter player">
+          <video id="video" playsinline muted></video>
+          <div id="eye-state" class="eye-state">준비 중</div>
+          <figcaption><span id="player-name">나</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="hud">
+        <div id="status" class="status">카메라를 준비하고 있어요…</div>
+        <div id="timer" class="timer mono">0:00.00</div>
+        <div class="progress" aria-hidden="true">
+          <div id="progress-fill" class="progress-fill"></div>
+          <div class="progress-mark"><span>상대 기록</span></div>
+        </div>
+        <div class="meter">
+          <span>눈 감김</span>
+          <div class="meter-bar">
+            <div id="meter-fill" class="meter-fill"></div>
+            <div id="meter-threshold" class="meter-threshold"></div>
+          </div>
+        </div>
+        <button id="btn-quit" class="btn btn-ghost" type="button">그만두기</button>
+      </div>
+    </section>
+
+    <!-- 결과 화면 -->
+    <section id="screen-result" class="screen">
+      <p id="result-eyebrow" class="eyebrow"></p>
+      <h1 id="result-title" class="title result-title"></h1>
+      <p class="result-time mono" id="result-time"></p>
+      <p id="result-desc" class="lead"></p>
+      <p id="result-error" class="error" role="alert"></p>
+
+      <div class="row center">
+        <button id="btn-retry" class="btn btn-primary" type="button">다시 도전</button>
+        <button id="btn-home" class="btn btn-ghost" type="button">처음으로</button>
+      </div>
+
+      <div class="board">
+        <div class="board-head"><h2>랭킹</h2></div>
+        <ol id="board-result" class="board-list"></ol>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

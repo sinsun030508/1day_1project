@@ -1,0 +1,302 @@
+:root {
+  --bg: #0d0d0f;
+  --surface: #17171b;
+  --surface-2: #212127;
+  --line: #2e2e36;
+  --text: #f3f1ea;
+  --muted: #9a98a3;
+  --accent: #ff3b30;
+  --accent-soft: rgba(255, 59, 48, 0.16);
+  --win: #ffd23f;
+  --ok: #3ddc84;
+  --radius: 14px;
+  --font-display: "Black Han Sans", "Noto Sans KR", sans-serif;
+  --font-body: "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 59, 48, 0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 16px 64px;
+}
+
+.screen { display: none; }
+.screen.is-active { display: block; animation: rise 0.35s ease-out; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- 타이포 ---------- */
+.eyebrow {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(56px, 14vw, 112px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+.title span { color: var(--accent); }
+
+.lead { color: var(--muted); font-size: 17px; margin: 20px 0 0; }
+.lead strong { color: var(--text); }
+
+/* ---------- 폼/버튼 ---------- */
+.start-form {
+  margin-top: 36px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.start-form label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row.center { justify-content: center; margin-top: 28px; }
+
+input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 14px 16px;
+  font: inherit;
+  font-size: 17px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+}
+input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.btn {
+  padding: 14px 22px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.08s, background 0.15s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #ff5147; }
+.btn-ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+.btn-ghost:hover { color: var(--text); background: var(--surface-2); }
+
+.hint { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.error { margin: 10px 0 0; color: var(--accent); font-size: 14px; min-height: 1em; }
+.error:empty { display: none; }
+
+/* ---------- 랭킹 ---------- */
+.board { margin-top: 36px; }
+.board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.board-head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 26px; }
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.badge:empty { display: none; }
+
+.board-list { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
+.board-list li {
+  counter-increment: rank;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.board-list li::before {
+  content: counter(rank);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--muted);
+}
+.board-list li:nth-child(1)::before { color: var(--win); }
+.board-list li .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-list li .time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.board-list li .time.beat { color: var(--win); }
+.board-list li.is-me { background: var(--accent-soft); border-radius: 8px; }
+.board-list li.is-owner .name::after { content: " · 제작자 기록"; color: var(--muted); font-size: 12px; }
+.board-list .empty { display: block; color: var(--muted); text-align: center; padding: 20px; }
+.board-list .empty::before { content: none; }
+
+/* ---------- 게임 ---------- */
+.arena {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.fighter {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+}
+.fighter img, .fighter video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.fighter video { transform: scaleX(-1); }
+.fighter figcaption {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 24px 12px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  font-weight: 700;
+  font-size: 14px;
+}
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  font-size: 72px;
+}
+.opponent.no-photo img { display: none; }
+.opponent.no-photo .placeholder { display: grid; }
+
+.versus {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--accent);
+}
+
+.eye-state {
+  position: absolute;
+  top: 10px; left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--muted);
+}
+.eye-state.open { color: var(--ok); }
+.eye-state.warn { color: var(--accent); }
+
+.player.is-playing { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+.hud { margin-top: 20px; text-align: center; }
+.status { color: var(--muted); min-height: 1.6em; }
+.status.big { color: var(--text); font-family: var(--font-display); font-size: 28px; }
+
+.timer {
+  font-size: clamp(56px, 16vw, 104px);
+  font-weight: 700;
+  line-height: 1.05;
+  margin: 4px 0 16px;
+}
+.timer.beat { color: var(--win); text-shadow: 0 0 32px rgba(255, 210, 63, 0.35); }
+
+.progress {
+  position: relative;
+  height: 10px;
+  margin: 0 0 30px;
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: inherit;
+}
+.progress-fill.beat { background: var(--win); }
+/* 상대 기록 위치: 트랙의 80% 지점 = 1:20, 끝 = 1:40 */
+.progress-mark {
+  position: absolute;
+  top: -4px; bottom: -4px;
+  left: 80%;
+  width: 2px;
+  background: var(--text);
+}
+.progress-mark span {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  margin: 0 auto 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.meter-bar { position: relative; flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.meter-fill { height: 100%; width: 0; background: var(--ok); }
+.meter-fill.warn { background: var(--accent); }
+.meter-threshold { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); left: 50%; }
+
+/* ---------- 결과 ---------- */
+#screen-result { text-align: center; }
+#result-eyebrow { font-family: var(--font-body); font-size: 15px; font-weight: 700; letter-spacing: 0; }
+.result-title { font-size: clamp(48px, 12vw, 96px); }
+.result-title.win { color: var(--win); }
+.result-time { font-size: 40px; font-weight: 700; margin: 12px 0 0; }
+#screen-result .board { text-align: left; }
+
+body.flash { animation: flash 0.5s; }
+@keyframes flash {
+  0% { box-shadow: inset 0 0 0 100vmax rgba(255, 59, 48, 0.35); }
+  100% { box-shadow: inset 0 0 0 100vmax transparent; }
+}
+
+@media (max-width: 560px) {
+  .app { padding-top: 24px; }
+  .arena { grid-template-columns: 1fr 1fr; }
+  .versus { display: none; }
+  .fighter figcaption { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen.is-active, body.flash { animation: none; }
+}
