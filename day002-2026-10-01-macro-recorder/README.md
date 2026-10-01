@@ -18,15 +18,20 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 
 ## 단축키
 
-창이 다른 프로그램에 가려져 있어도 동작합니다.
+Windows 전역 단축키(`RegisterHotKey`)로 등록하므로, 다른 프로그램을 쓰는 중에도 눌립니다.
 
 | 키 | 동작 |
 |----|------|
 | `F9` | 녹화 시작 / 중지 |
 | `F10` | 재생 시작 / 중지 |
-| `Esc` | 즉시 중지 (재생 대기 중이면 취소) |
+| `F8` | 즉시 중지 (재생 대기 중이면 취소) |
 
-`F9` `F10` `Esc`는 녹화에 포함되지 않습니다.
+- 앱 창이 떠 있는 동안에는 `Esc`로도 중지됩니다.
+- 세 키 모두 **전역 단축키 칸의 `변경` 버튼**으로 바꿀 수 있고, `settings.json`에 저장됩니다.
+- 저장된 매크로를 고르고 **`단축키 지정`**을 누르면 그 매크로에만 쓰는 실행 단축키를 줄 수 있습니다 (예: `Ctrl+Alt+1`). 누르면 해당 매크로를 불러와 바로 재생합니다.
+- 등록된 단축키는 녹화에 포함되지 않습니다.
+- `Esc`나 `F12`는 기본값으로 쓰지 않습니다. `Esc`를 전역으로 잡으면 다른 프로그램에서 `Esc`가 막히고, `F12`는 윈도우가 예약한 키라 등록 자체가 거부됩니다.
+- 다른 프로그램이 이미 쓰고 있는 키 조합은 등록에 실패하며, 앱이 알려줍니다.
 
 ## 기능
 
@@ -41,10 +46,11 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 
 ```
 main.py          tkinter 화면과 전체 흐름
+hotkeys.py       Windows 전역 단축키 등록 (ctypes + RegisterHotKey)
 recorder.py      pynput 리스너로 입력 녹화
 player.py        별도 스레드에서 이벤트 재생
 events.py        이벤트 직렬화 규칙과 설명 문구
-storage.py       macros/*.json 저장·불러오기
+storage.py       macros/*.json, settings.json 저장·불러오기
 ```
 
 ## 저장 형식
@@ -54,6 +60,7 @@ storage.py       macros/*.json 저장·불러오기
   "name": "매크로1",
   "created_at": "2026-10-01T15:04:21",
   "duration": 3.42,
+  "hotkey": { "mods": ["ctrl", "alt"], "vk": 49, "label": "Ctrl+Alt+1" },
   "events": [
     { "dt": 0.0, "type": "move", "x": 820, "y": 410 },
     { "dt": 0.12, "type": "click", "x": 820, "y": 410, "button": "left", "pressed": true }

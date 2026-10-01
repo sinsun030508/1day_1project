@@ -32,6 +32,14 @@ def dict_to_key(data):
     return keyboard.KeyCode.from_vk(value)
 
 
+def key_vk(key):
+    """pynput 키 객체의 가상 키 코드. 전역 단축키와 비교할 때 쓴다."""
+    vk = getattr(key, "vk", None)
+    if vk is None and hasattr(key, "value"):
+        vk = getattr(key.value, "vk", None)
+    return vk
+
+
 def describe(event):
     """목록에 보여줄 한 줄 설명."""
     t = event["type"]

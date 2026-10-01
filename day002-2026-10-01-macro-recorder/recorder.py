@@ -8,9 +8,9 @@ import events as ev
 
 
 class Recorder:
-    def __init__(self, ignore_keys=(), move_interval=0.02, on_event=None):
-        """ignore_keys: 녹화에서 제외할 키 (앱 단축키). move_interval: 마우스 이동 기록 간격(초)."""
-        self.ignore_keys = set(ignore_keys)
+    def __init__(self, ignore_vks=(), move_interval=0.02, on_event=None):
+        """ignore_vks: 녹화에서 제외할 가상 키 코드 (앱 단축키). move_interval: 마우스 이동 기록 간격(초)."""
+        self.ignore_vks = set(ignore_vks)
         self.move_interval = move_interval
         self.record_moves = True  # 끄면 클릭 지점만 남아 파일이 훨씬 가벼워진다
         self.on_event = on_event
@@ -67,10 +67,13 @@ class Recorder:
         if self.recording:
             self._append(type=ev.SCROLL, x=int(x), y=int(y), dx=int(dx), dy=int(dy))
 
+    def _ignored(self, key):
+        return ev.key_vk(key) in self.ignore_vks
+
     def _on_press(self, key):
-        if self.recording and key not in self.ignore_keys:
+        if self.recording and not self._ignored(key):
             self._append(type=ev.KEY_PRESS, key=ev.key_to_dict(key))
 
     def _on_release(self, key):
-        if self.recording and key not in self.ignore_keys:
+        if self.recording and not self._ignored(key):
             self._append(type=ev.KEY_RELEASE, key=ev.key_to_dict(key))

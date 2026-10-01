@@ -4,14 +4,19 @@ import queue
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from pynput import keyboard
-
 import events as ev
+import hotkeys as hk
 import storage
 from player import Player
 from recorder import Recorder
 
-HOTKEYS = {keyboard.Key.f9: "record", keyboard.Key.f10: "play", keyboard.Key.esc: "stop"}
+# 기본 전역 단축키. Esc를 전역으로 잡으면 다른 프로그램에서도 막히고, F12는 윈도우가 예약한 키라 등록되지 않는다.
+DEFAULT_HOTKEYS = {
+    "record": {"mods": [], "vk": 0x78, "label": "F9"},
+    "play": {"mods": [], "vk": 0x79, "label": "F10"},
+    "stop": {"mods": [], "vk": 0x77, "label": "F8"},
+}
+CONTROL_LABELS = {"record": "녹화 시작/중지", "play": "재생 시작/중지", "stop": "즉시 중지"}
 
 
 class App:
@@ -21,16 +26,29 @@ class App:
         self.events = []
         self.current_name = ""
         self.countdown_job = None
+        self.macro_items = []
 
-        self.recorder = Recorder(ignore_keys=HOTKEYS.keys(), on_event=lambda e: self.queue.put(("event", e)))
+        self.settings = storage.load_settings({"hotkeys": DEFAULT_HOTKEYS})
+        self.control_hotkeys = {
+            name: hk.Hotkey.from_dict(self.settings["hotkeys"].get(name, DEFAULT_HOTKEYS[name]))
+            for name in DEFAULT_HOTKEYS
+        }
+
+        self.recorder = Recorder(on_event=lambda e: self.queue.put(("event", e)))
         self.player = Player(
             on_progress=lambda r, total, i, n: self.queue.put(("progress", (r, total, i, n))),
             on_finish=lambda stopped: self.queue.put(("finish", stopped)),
         )
+        self.hotkey_manager = hk.HotkeyManager(
+            on_trigger=lambda name: self.queue.put(("hotkey", name)),
+            on_error=lambda name, hotkey: self.queue.put(("hotkey_error", (name, hotkey))),
+        )
 
         self._build_ui()
         self.refresh_macro_list()
-        self._start_hotkeys()
+        self.hotkey_manager.start()
+        self.apply_hotkeys()
+        self.root.bind("<Escape>", lambda _: self.stop_all())
         self.root.after(50, self._drain_queue)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -38,28 +56,27 @@ class App:
     def _build_ui(self):
         root = self.root
         root.title("매크로 녹화기")
-        root.geometry("820x600")
-        root.minsize(720, 560)
+        root.geometry("880x660")
+        root.minsize(780, 600)
         root.columnconfigure(0, weight=3)
         root.columnconfigure(1, weight=2)
-        root.rowconfigure(3, weight=1)
+        root.rowconfigure(4, weight=1)
 
-        self.status = tk.Label(root, text="대기 중 · F9 녹화 / F10 재생 / Esc 중지", font=("Malgun Gothic", 14, "bold"),
+        self.status = tk.Label(root, text="대기 중", font=("Malgun Gothic", 14, "bold"),
                                bg="#2b2b2b", fg="#eeeeee", pady=12)
         self.status.grid(row=0, column=0, columnspan=2, sticky="ew")
 
-        # 버튼 줄
         bar = ttk.Frame(root, padding=(12, 12, 12, 4))
         bar.grid(row=1, column=0, columnspan=2, sticky="ew")
-        self.btn_record = ttk.Button(bar, text="● 녹화 시작 (F9)", command=self.toggle_record, width=18)
-        self.btn_play = ttk.Button(bar, text="▶ 재생 (F10)", command=self.toggle_play, width=16)
-        self.btn_stop = ttk.Button(bar, text="■ 중지 (Esc)", command=self.stop_all, width=14)
+        self.btn_record = ttk.Button(bar, text="● 녹화 시작", command=self.toggle_record, width=18)
+        self.btn_play = ttk.Button(bar, text="▶ 재생", command=self.toggle_play, width=16)
+        self.btn_stop = ttk.Button(bar, text="■ 중지", command=self.stop_all, width=14)
         for i, btn in enumerate((self.btn_record, self.btn_play, self.btn_stop)):
             btn.grid(row=0, column=i, padx=(0, 8))
 
-        # 설정 줄
+        # 재생 설정
         opts = ttk.LabelFrame(root, text="재생 설정", padding=10)
-        opts.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(4, 8))
+        opts.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(4, 6))
 
         self.repeat = tk.IntVar(value=1)
         self.infinite = tk.BooleanVar(value=False)
@@ -85,9 +102,21 @@ class App:
         ttk.Checkbutton(opts, text="재생 전 3초 대기", variable=self.countdown).grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
         ttk.Checkbutton(opts, text="마우스 이동도 녹화", variable=self.record_moves).grid(row=1, column=3, columnspan=3, sticky="w", pady=(8, 0))
 
+        # 전역 단축키
+        keys = ttk.LabelFrame(root, text="전역 단축키 (다른 창에서도 동작)", padding=10)
+        keys.grid(row=3, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 6))
+        self.hotkey_labels = {}
+        for i, name in enumerate(DEFAULT_HOTKEYS):
+            ttk.Label(keys, text=CONTROL_LABELS[name]).grid(row=0, column=i * 3, sticky="w", padx=(0 if i == 0 else 16, 6))
+            label = ttk.Label(keys, text="", width=14, relief="groove", anchor="center", padding=3)
+            label.grid(row=0, column=i * 3 + 1)
+            self.hotkey_labels[name] = label
+            ttk.Button(keys, text="변경", width=6,
+                       command=lambda n=name: self.change_control_hotkey(n)).grid(row=0, column=i * 3 + 2, padx=(4, 0))
+
         # 이벤트 목록
         left = ttk.LabelFrame(root, text="이벤트", padding=8)
-        left.grid(row=3, column=0, sticky="nsew", padx=(12, 6), pady=(0, 8))
+        left.grid(row=4, column=0, sticky="nsew", padx=(12, 6), pady=(0, 8))
         left.rowconfigure(0, weight=1)
         left.columnconfigure(0, weight=1)
         self.list_events = tk.Listbox(left, font=("Consolas", 10), activestyle="none")
@@ -100,29 +129,106 @@ class App:
 
         # 저장된 매크로
         right = ttk.LabelFrame(root, text="저장된 매크로", padding=8)
-        right.grid(row=3, column=1, sticky="nsew", padx=(6, 12), pady=(0, 8))
+        right.grid(row=4, column=1, sticky="nsew", padx=(6, 12), pady=(0, 8))
         right.rowconfigure(0, weight=1)
-        right.columnconfigure(0, weight=1)
-        right.columnconfigure(1, weight=1)
+        for col in (0, 1, 2):
+            right.columnconfigure(col, weight=1)
         self.list_macros = tk.Listbox(right, activestyle="none")
-        self.list_macros.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.list_macros.grid(row=0, column=0, columnspan=3, sticky="nsew")
         self.list_macros.bind("<Double-Button-1>", lambda _: self.load_selected())
-        ttk.Button(right, text="불러오기", command=self.load_selected).grid(row=1, column=0, sticky="ew", pady=(8, 0), padx=(0, 4))
-        ttk.Button(right, text="삭제", command=self.delete_selected).grid(row=1, column=1, sticky="ew", pady=(8, 0), padx=(4, 0))
+        ttk.Button(right, text="불러오기", command=self.load_selected).grid(row=1, column=0, sticky="ew", pady=(8, 0), padx=(0, 3))
+        ttk.Button(right, text="단축키 지정", command=self.change_macro_hotkey).grid(row=1, column=1, sticky="ew", pady=(8, 0), padx=3)
+        ttk.Button(right, text="삭제", command=self.delete_selected).grid(row=1, column=2, sticky="ew", pady=(8, 0), padx=(3, 0))
 
         save = ttk.Frame(right)
-        save.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        save.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         save.columnconfigure(0, weight=1)
         self.entry_name = ttk.Entry(save)
         self.entry_name.grid(row=0, column=0, sticky="ew", padx=(0, 6))
         self.entry_name.insert(0, "매크로1")
         ttk.Button(save, text="저장", command=self.save_current).grid(row=0, column=1)
 
+        self._update_idle_status()
+
     def set_status(self, text, color="#2b2b2b"):
         self.status.config(text=text, bg=color)
 
+    def _update_idle_status(self):
+        parts = [f"{CONTROL_LABELS[n]} {self.control_hotkeys[n].label}" for n in DEFAULT_HOTKEYS if self.control_hotkeys[n]]
+        self.set_status("대기 중 · " + " / ".join(parts))
+
     def _sync_repeat(self):
         self.spin_repeat.config(state="disabled" if self.infinite.get() else "normal")
+
+    # ---------------- 단축키 ----------------
+    def apply_hotkeys(self):
+        """현재 설정된 단축키 전체를 다시 등록하고, 녹화에서 제외할 키도 갱신한다."""
+        bindings = {f"ctl:{name}": hotkey for name, hotkey in self.control_hotkeys.items()}
+        for item in self.macro_items:
+            hotkey = hk.Hotkey.from_dict(item["hotkey"])
+            if hotkey:
+                bindings[f"macro:{item['path']}"] = hotkey
+        self.hotkey_manager.set_bindings(bindings)
+        self.recorder.ignore_vks = {h.vk for h in bindings.values()}
+        for name, label in self.hotkey_labels.items():
+            hotkey = self.control_hotkeys[name]
+            label.config(text=hotkey.label if hotkey else "없음")
+
+    def _conflict(self, hotkey, exclude_control=None, exclude_path=None):
+        for name, existing in self.control_hotkeys.items():
+            if name != exclude_control and existing and existing == hotkey:
+                return CONTROL_LABELS[name]
+        for item in self.macro_items:
+            existing = hk.Hotkey.from_dict(item["hotkey"])
+            if item["path"] != exclude_path and existing and existing == hotkey:
+                return f"매크로 '{item['name']}'"
+        return None
+
+    def change_control_hotkey(self, name):
+        result = HotkeyDialog(self.root, CONTROL_LABELS[name], allow_clear=False).result
+        if not result:
+            return
+        conflict = self._conflict(result, exclude_control=name)
+        if conflict:
+            return messagebox.showwarning("중복", f"{result.label}은(는) 이미 {conflict}에 지정돼 있습니다.")
+        self.control_hotkeys[name] = result
+        self.settings["hotkeys"][name] = result.to_dict()
+        storage.save_settings(self.settings)
+        self.apply_hotkeys()
+        self._update_idle_status()
+
+    def change_macro_hotkey(self):
+        item = self._selected_macro()
+        if not item:
+            return messagebox.showinfo("선택 없음", "단축키를 지정할 매크로를 먼저 선택하세요.")
+        dialog = HotkeyDialog(self.root, f"매크로 '{item['name']}' 실행", allow_clear=True)
+        if dialog.result is None:
+            return
+        if dialog.result == "clear":
+            storage.set_hotkey(item["path"], None)
+        else:
+            conflict = self._conflict(dialog.result, exclude_path=item["path"])
+            if conflict:
+                return messagebox.showwarning("중복", f"{dialog.result.label}은(는) 이미 {conflict}에 지정돼 있습니다.")
+            storage.set_hotkey(item["path"], dialog.result.to_dict())
+        self.refresh_macro_list()
+        self.apply_hotkeys()
+
+    def _run_hotkey(self, name):
+        if name.startswith("ctl:"):
+            {"record": self.toggle_record, "play": self.toggle_play, "stop": self.stop_all}[name[4:]]()
+            return
+        path = name[len("macro:"):]
+        item = next((i for i in self.macro_items if str(i["path"]) == path), None)
+        if not item or self.recorder.recording:
+            return
+        if self.player.playing or self.countdown_job:
+            return self.stop_all()
+        self.current_name, self.events = storage.load(item["path"])
+        self._render_events()
+        self.entry_name.delete(0, tk.END)
+        self.entry_name.insert(0, self.current_name)
+        self.toggle_play()
 
     # ---------------- 녹화 ----------------
     def toggle_record(self):
@@ -130,16 +236,17 @@ class App:
             return
         if self.recorder.recording:
             self.events = self.recorder.stop()
-            self.btn_record.config(text="● 녹화 시작 (F9)")
-            self.set_status(f"녹화 완료 · {len(self.events)}개 이벤트", "#2b2b2b")
+            self.btn_record.config(text="● 녹화 시작")
+            self.set_status(f"녹화 완료 · {len(self.events)}개 이벤트")
             self._render_events()
         else:
             self.recorder.record_moves = self.record_moves.get()
             self.recorder.start()
             self.events = []
             self.list_events.delete(0, tk.END)
-            self.btn_record.config(text="■ 녹화 중지 (F9)")
-            self.set_status("● 녹화 중 … F9를 누르면 멈춥니다", "#8b1d1d")
+            self.btn_record.config(text="■ 녹화 중지")
+            stop_key = self.control_hotkeys["record"].label
+            self.set_status(f"● 녹화 중 … {stop_key}를 누르면 멈춥니다", "#8b1d1d")
 
     # ---------------- 재생 ----------------
     def toggle_play(self):
@@ -158,20 +265,20 @@ class App:
         if left <= 0:
             self.countdown_job = None
             return self._start_play()
-        self.set_status(f"{left}초 후 재생 … (Esc 취소)", "#7a5d00")
+        self.set_status(f"{left}초 후 재생 … ({self.control_hotkeys['stop'].label} 취소)", "#7a5d00")
         self.countdown_job = self.root.after(1000, self._countdown, left - 1)
 
     def _start_play(self):
         repeat = 0 if self.infinite.get() else max(1, self.repeat.get())
-        self.btn_play.config(text="■ 재생 중지 (F10)")
-        self.set_status("▶ 재생 중 … Esc를 누르면 멈춥니다", "#1d4e89")
+        self.btn_play.config(text="■ 재생 중지")
+        self.set_status("▶ 재생 중 …", "#1d4e89")
         self.player.play(self.events, repeat=repeat, speed=self.speed.get(), gap=self.gap.get())
 
     def stop_all(self):
         if self.countdown_job:
             self.root.after_cancel(self.countdown_job)
             self.countdown_job = None
-            self.set_status("재생을 취소했습니다", "#2b2b2b")
+            self.set_status("재생을 취소했습니다")
         if self.player.playing:
             self.player.stop()
         if self.recorder.recording:
@@ -185,6 +292,7 @@ class App:
         path = storage.save(name, self.events)
         self.current_name = name
         self.refresh_macro_list()
+        self.apply_hotkeys()
         self.set_status(f"저장됨 · {path.name}")
 
     def _selected_macro(self):
@@ -195,27 +303,29 @@ class App:
         item = self._selected_macro()
         if not item:
             return
-        name, path, _, _ = item
-        self.current_name, self.events = storage.load(path)
+        self.current_name, self.events = storage.load(item["path"])
         self.entry_name.delete(0, tk.END)
-        self.entry_name.insert(0, name)
+        self.entry_name.insert(0, self.current_name)
         self._render_events()
-        self.set_status(f"불러옴 · {name} ({len(self.events)}개)")
+        self.set_status(f"불러옴 · {self.current_name} ({len(self.events)}개)")
 
     def delete_selected(self):
         item = self._selected_macro()
         if not item:
             return
-        name, path, _, _ = item
-        if messagebox.askyesno("삭제", f"'{name}' 매크로를 삭제할까요?"):
-            storage.delete(path)
+        if messagebox.askyesno("삭제", f"'{item['name']}' 매크로를 삭제할까요?"):
+            storage.delete(item["path"])
             self.refresh_macro_list()
+            self.apply_hotkeys()
 
     def refresh_macro_list(self):
         self.macro_items = storage.list_macros()
         self.list_macros.delete(0, tk.END)
-        for name, _, count, duration in self.macro_items:
-            self.list_macros.insert(tk.END, f"{name}  ({count}개 · {duration:.1f}초)")
+        for item in self.macro_items:
+            text = f"{item['name']}  ({item['count']}개 · {item['duration']:.1f}초)"
+            if item["hotkey"]:
+                text += f"  [{item['hotkey'].get('label', '')}]"
+            self.list_macros.insert(tk.END, text)
 
     # ---------------- 이벤트 목록 ----------------
     def _render_events(self):
@@ -237,34 +347,73 @@ class App:
                 if kind == "event":
                     self.lbl_summary.config(text=f"{len(self.recorder.events)}개 · 녹화 중")
                 elif kind == "hotkey":
-                    {"record": self.toggle_record, "play": self.toggle_play, "stop": self.stop_all}[payload]()
+                    self._run_hotkey(payload)
+                elif kind == "hotkey_error":
+                    name, hotkey = payload
+                    target = CONTROL_LABELS.get(name[4:], "매크로") if name.startswith("ctl:") else "매크로"
+                    messagebox.showwarning(
+                        "단축키 등록 실패",
+                        f"{hotkey.label} 키를 다른 프로그램이 이미 사용 중이라 {target} 단축키로 등록하지 못했습니다.\n"
+                        "다른 조합으로 바꿔 주세요.",
+                    )
                 elif kind == "progress":
                     round_index, total, i, n = payload
                     label = f"{round_index}/{total}" if total > 0 else f"{round_index}회차"
-                    self.set_status(f"▶ 재생 중 {label} · {i}/{n} … Esc 중지", "#1d4e89")
+                    stop_key = self.control_hotkeys["stop"].label
+                    self.set_status(f"▶ 재생 중 {label} · {i}/{n} … {stop_key} 중지", "#1d4e89")
                 elif kind == "finish":
-                    self.btn_play.config(text="▶ 재생 (F10)")
-                    self.set_status("재생을 멈췄습니다" if payload else "재생 완료", "#2b2b2b")
+                    self.btn_play.config(text="▶ 재생")
+                    self.set_status("재생을 멈췄습니다" if payload else "재생 완료")
         except queue.Empty:
             pass
         self.root.after(50, self._drain_queue)
-
-    def _start_hotkeys(self):
-        """창이 선택돼 있지 않아도 동작하도록 전역 키 리스너를 쓴다."""
-        def on_press(key):
-            action = HOTKEYS.get(key)
-            if action:
-                self.queue.put(("hotkey", action))
-
-        self.hotkey_listener = keyboard.Listener(on_press=on_press)
-        self.hotkey_listener.start()
 
     def on_close(self):
         self.player.stop()
         if self.recorder.recording:
             self.recorder.stop()
-        self.hotkey_listener.stop()
+        self.hotkey_manager.stop()
         self.root.destroy()
+
+
+class HotkeyDialog(tk.Toplevel):
+    """키 조합을 눌러서 단축키를 지정하는 작은 창."""
+
+    def __init__(self, parent, target_label, allow_clear):
+        super().__init__(parent)
+        self.result = None
+        self.title("단축키 지정")
+        self.resizable(False, False)
+        self.transient(parent)
+
+        ttk.Label(self, text=f"{target_label}에 사용할 키를 누르세요", padding=(20, 16, 20, 6)).pack()
+        self.preview = ttk.Label(self, text="…", font=("Malgun Gothic", 16, "bold"), padding=(0, 4, 0, 10))
+        self.preview.pack()
+        ttk.Label(self, text="Ctrl·Alt·Shift와 함께 누르면 조합키가 됩니다", foreground="#666").pack(padx=20)
+
+        buttons = ttk.Frame(self, padding=14)
+        buttons.pack()
+        if allow_clear:
+            ttk.Button(buttons, text="단축키 없음", command=self._clear).grid(row=0, column=0, padx=4)
+        ttk.Button(buttons, text="취소", command=self.destroy).grid(row=0, column=1, padx=4)
+
+        self.bind("<KeyPress>", self._on_key)
+        self.grab_set()
+        self.focus_force()
+        parent.wait_window(self)
+
+    def _on_key(self, event):
+        hotkey = hk.from_tk_event(event)
+        if not hotkey:
+            return "break"
+        self.preview.config(text=hotkey.label)
+        self.result = hotkey
+        self.after(250, self.destroy)  # 누른 키를 잠깐 보여주고 닫는다
+        return "break"
+
+    def _clear(self):
+        self.result = "clear"
+        self.destroy()
 
 
 def main():
