@@ -1,14 +1,21 @@
-@echo off
-rem Îß§ÌÅ¨Î°ú ÎÖπÌôîÍ∏∞ Ïã§Ìñâ (.venvÍ∞Ä ÏóÜÏúºÎ©¥ Î®ºÏ†Ä ÎßåÎì§Í≥† pynputÏùÑ ÏÑ§ÏπòÌïúÎã§)
-cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-  python -m venv .venv || goto :error
-  .venv\Scripts\python.exe -m pip install -r requirements.txt || goto :error
-)
-start "" ".venv\Scripts\pythonw.exe" main.py
-exit /b 0
-
-:error
-echo.
-echo Ïã§ÌñâÏóê Ïã§Ìå®ÌñàÏäµÎãàÎã§. PythonÏù¥ ÏÑ§ÏπòÎèº ÏûàÎäîÏßÄ ÌôïÏù∏Ìï¥ Ï£ºÏÑ∏Ïöî.
-pause
+@echo off
+chcp 949 >nul
+cd /d "%~dp0"
+
+if not exist ".venv\Scripts\python.exe" (
+  echo ∞°ªÛ»Ø∞Ê¿ª ∏∏µÂ¥¬ ¡ﬂ¿‘¥œ¥Ÿ. ¿·Ω√∏∏ ±‚¥Ÿ∑¡ ¡÷ººø‰...
+  python -m venv .venv
+  if errorlevel 1 goto error
+  .venv\Scripts\python.exe -m pip install -r requirements.txt
+  if errorlevel 1 goto error
+)
+
+start "" ".venv\Scripts\pythonw.exe" main.py
+exit /b 0
+
+:error
+echo.
+echo Ω««‡ø° Ω«∆–«ﬂΩ¿¥œ¥Ÿ. Python¿Ã º≥ƒ°µ≈ ¿÷¥¬¡ˆ »Æ¿Œ«ÿ ¡÷ººø‰.
+echo https://www.python.org/downloads/ ø°º≠ º≥ƒ°«“ ºˆ ¿÷Ω¿¥œ¥Ÿ.
+pause
+exit /b 1
