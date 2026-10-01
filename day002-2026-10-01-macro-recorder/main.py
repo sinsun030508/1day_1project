@@ -1,5 +1,6 @@
 """매크로 녹화기 — 마우스·키보드 동작을 녹화해 반복 재생한다."""
 
+import ctypes
 import queue
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -18,6 +19,36 @@ DEFAULT_HOTKEYS = {
 }
 CONTROL_LABELS = {"record": "녹화 시작/중지", "play": "재생 시작/중지", "stop": "즉시 중지"}
 
+DEFAULT_PLAYBACK = {"repeat": 1, "infinite": False, "speed": 1.0, "gap": 0.0, "countdown": False, "record_moves": True}
+
+
+def enable_dpi_awareness():
+    """화면 배율(125% 등)이 걸려 있어도 실제 픽셀 좌표를 쓰도록 한다.
+
+    이걸 켜지 않으면 윈도우가 좌표를 축소해서 넘겨주기 때문에,
+    녹화한 위치와 재생하는 위치가 어긋난다.
+    """
+    user32 = ctypes.windll.user32
+    try:  # Windows 10 1703+
+        if user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):  # PER_MONITOR_AWARE_V2
+            return
+    except AttributeError:
+        pass
+    try:  # Windows 8.1+
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except (AttributeError, OSError):
+        try:
+            user32.SetProcessDPIAware()
+        except AttributeError:
+            pass
+
+
+def dpi_scale():
+    try:
+        return ctypes.windll.user32.GetDpiForSystem() / 96
+    except AttributeError:
+        return 1.0
+
 
 class App:
     def __init__(self, root):
@@ -28,7 +59,7 @@ class App:
         self.countdown_job = None
         self.macro_items = []
 
-        self.settings = storage.load_settings({"hotkeys": DEFAULT_HOTKEYS})
+        self.settings = storage.load_settings({"hotkeys": DEFAULT_HOTKEYS, "playback": DEFAULT_PLAYBACK})
         self.control_hotkeys = {
             name: hk.Hotkey.from_dict(self.settings["hotkeys"].get(name, DEFAULT_HOTKEYS[name]))
             for name in DEFAULT_HOTKEYS
@@ -49,15 +80,16 @@ class App:
         self.hotkey_manager.start()
         self.apply_hotkeys()
         self.root.bind("<Escape>", lambda _: self.stop_all())
-        self.root.after(50, self._drain_queue)
+        self._drain_job = self.root.after(50, self._drain_queue)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # ---------------- UI ----------------
     def _build_ui(self):
         root = self.root
         root.title("매크로 녹화기")
-        root.geometry("880x660")
-        root.minsize(780, 600)
+        scale = dpi_scale()
+        root.geometry(f"{int(880 * scale)}x{int(660 * scale)}")
+        root.minsize(int(780 * scale), int(600 * scale))
         root.columnconfigure(0, weight=3)
         root.columnconfigure(1, weight=2)
         root.rowconfigure(4, weight=1)
@@ -78,12 +110,13 @@ class App:
         opts = ttk.LabelFrame(root, text="재생 설정", padding=10)
         opts.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(4, 6))
 
-        self.repeat = tk.IntVar(value=1)
-        self.infinite = tk.BooleanVar(value=False)
-        self.speed = tk.DoubleVar(value=1.0)
-        self.gap = tk.DoubleVar(value=0.0)
-        self.countdown = tk.BooleanVar(value=True)
-        self.record_moves = tk.BooleanVar(value=True)
+        playback = {**DEFAULT_PLAYBACK, **self.settings.get("playback", {})}
+        self.repeat = tk.IntVar(value=playback["repeat"])
+        self.infinite = tk.BooleanVar(value=playback["infinite"])
+        self.speed = tk.DoubleVar(value=playback["speed"])
+        self.gap = tk.DoubleVar(value=playback["gap"])
+        self.countdown = tk.BooleanVar(value=playback["countdown"])
+        self.record_moves = tk.BooleanVar(value=playback["record_moves"])
 
         ttk.Label(opts, text="반복").grid(row=0, column=0, sticky="w")
         self.spin_repeat = ttk.Spinbox(opts, from_=1, to=9999, width=6, textvariable=self.repeat)
@@ -93,13 +126,13 @@ class App:
         ttk.Label(opts, text="속도").grid(row=0, column=3, sticky="w")
         ttk.Scale(opts, from_=0.25, to=4.0, variable=self.speed, orient="horizontal", length=130,
                   command=lambda _: self.lbl_speed.config(text=f"{self.speed.get():.2f}배")).grid(row=0, column=4, padx=6)
-        self.lbl_speed = ttk.Label(opts, text="1.00배", width=7)
+        self.lbl_speed = ttk.Label(opts, text=f"{self.speed.get():.2f}배", width=7)
         self.lbl_speed.grid(row=0, column=5, padx=(0, 18))
 
         ttk.Label(opts, text="반복 간격(초)").grid(row=0, column=6, sticky="w")
         ttk.Spinbox(opts, from_=0, to=60, increment=0.5, width=6, textvariable=self.gap).grid(row=0, column=7, padx=6)
 
-        ttk.Checkbutton(opts, text="재생 전 3초 대기", variable=self.countdown).grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        ttk.Checkbutton(opts, text="재생 전 3초 기다리기", variable=self.countdown).grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
         ttk.Checkbutton(opts, text="마우스 이동도 녹화", variable=self.record_moves).grid(row=1, column=3, columnspan=3, sticky="w", pady=(8, 0))
 
         # 전역 단축키
@@ -148,6 +181,7 @@ class App:
         self.entry_name.insert(0, "매크로1")
         ttk.Button(save, text="저장", command=self.save_current).grid(row=0, column=1)
 
+        self._sync_repeat()
         self._update_idle_status()
 
     def set_status(self, text, color="#2b2b2b"):
@@ -366,9 +400,19 @@ class App:
                     self.set_status("재생을 멈췄습니다" if payload else "재생 완료")
         except queue.Empty:
             pass
-        self.root.after(50, self._drain_queue)
+        self._drain_job = self.root.after(50, self._drain_queue)
+
+    def _save_playback(self):
+        self.settings["playback"] = {
+            "repeat": self.repeat.get(), "infinite": self.infinite.get(),
+            "speed": round(self.speed.get(), 2), "gap": self.gap.get(),
+            "countdown": self.countdown.get(), "record_moves": self.record_moves.get(),
+        }
+        storage.save_settings(self.settings)
 
     def on_close(self):
+        self.root.after_cancel(self._drain_job)
+        self._save_playback()
         self.player.stop()
         if self.recorder.recording:
             self.recorder.stop()
@@ -417,7 +461,9 @@ class HotkeyDialog(tk.Toplevel):
 
 
 def main():
+    enable_dpi_awareness()
     root = tk.Tk()
+    root.tk.call("tk", "scaling", dpi_scale() * 96 / 72)
     try:
         ttk.Style().theme_use("vista")
     except tk.TclError:
