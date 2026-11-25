@@ -3,11 +3,67 @@
 글을 쓰는 동안 맞춤법·띄어쓰기를 검사해서, 틀리면 입력 커서 위에 올바른 문장을 말풍선으로 보여주는 윈도우 상주 프로그램입니다.
 Python + tkinter + [Kiwi](https://github.com/bab2min/kiwipiepy) + [pynput](https://pynput.readthedocs.io/)으로 만들었습니다.
 
-## 실행
+## 초기 설정
 
-`run.bat`을 더블클릭하면 됩니다. 처음 실행할 때 가상환경을 만들고 필요한 라이브러리를 설치합니다.
+### 1. Python 설치 (이미 있으면 건너뛰기)
 
-직접 실행하려면:
+1. [python.org/downloads](https://www.python.org/downloads/)에서 Python 3.10 이상을 받습니다.
+2. 설치 첫 화면에서 **`Add python.exe to PATH`를 반드시 체크**하고 `Install Now`를 누릅니다.
+3. 확인: `cmd`를 열고 `python --version` → `Python 3.x.x`가 나오면 성공
+
+> `python`을 입력했는데 Microsoft Store가 열리면 PATH 체크가 빠진 것입니다.
+> Python을 다시 설치하면서 체크하거나, `설정 → 앱 → 고급 앱 설정 → 앱 실행 별칭`에서 `python.exe` 두 개를 끄세요.
+
+### 2. 코드 받기
+
+처음이면:
+
+```bash
+git clone https://github.com/sinsun030508/1day_1project.git
+cd 1day_1project/day003-2026-11-26-spell-checker
+```
+
+이미 저장소가 있으면 저장소 폴더에서 `git pull`만 하면 됩니다.
+
+### 3. 첫 실행
+
+`day003-2026-11-26-spell-checker` 폴더의 **`run.bat`을 더블클릭**합니다.
+
+- 처음 한 번은 검은 창이 뜨고 `.venv` 가상환경을 만든 뒤 라이브러리 4개를 설치합니다.
+- Kiwi 언어 모델 때문에 **1~3분 정도 걸립니다**. 창이 닫힐 때까지 기다리세요.
+- 다음부터는 설치 없이 바로 켜지고, 창 없이 백그라운드에서 돕니다.
+- `Windows의 PC 보호` 경고가 뜨면 `추가 정보 → 실행`을 누르세요.
+
+| 라이브러리 | 용도 |
+|------------|------|
+| `kiwipiepy` | 띄어쓰기 교정 (한국어 형태소 분석기) |
+| `pynput` | 키 입력 감지, `Ctrl+Alt+K` 단축키 |
+| `pyperclip` | 클립보드 읽기/쓰기 |
+| `uiautomation` | 입력창에 쓰인 글 읽기 |
+
+### 4. 잘 되는지 확인
+
+1. 메모장을 엽니다.
+2. `몇일전에 할께요`를 입력하고 **스페이스**를 누릅니다.
+3. 커서 위에 `✔ 며칠 전에 할게요` 말풍선이 뜨면 성공입니다.
+4. 같은 문장을 드래그로 선택하고 `Ctrl+Alt+K` → 교정된 문장으로 바뀌면 단축키도 정상입니다.
+
+### 5. 컴퓨터 켤 때 자동 실행 (선택)
+
+1. `run.bat`을 우클릭 → `바로 가기 만들기` (Windows 11은 `추가 옵션 표시` 안에 있음)
+2. `Win+R` → `shell:startup` 입력 → 엔터. 시작프로그램 폴더가 열립니다.
+3. 만든 바로가기를 그 폴더로 옮깁니다.
+
+자동 실행을 끄려면 그 폴더에서 바로가기를 지우면 됩니다.
+
+### 6. 끄기
+
+창이 없어서 닫기 버튼이 없습니다. **`stop.bat`을 더블클릭**하면 이 프로그램만 종료됩니다.
+(작업 관리자에서 `pythonw.exe`를 끝내도 되지만, 다른 Python 프로그램도 같이 꺼질 수 있습니다.)
+
+### 직접 실행 (개발용)
+
+오류 메시지를 보려면 `pythonw` 대신 `python`으로 실행하세요.
 
 ```bash
 python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.txt
@@ -15,9 +71,19 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 ```bash
 .venv/Scripts/python.exe live_fix.py   # 실시간 말풍선
 .venv/Scripts/python.exe autofix.py    # 선택 영역 교정 단축키
+.venv/Scripts/python.exe spell_fix.py "몇일전에 할께요"   # 엔진만 테스트
 ```
 
-부팅할 때 자동으로 켜지게 하려면 `Win+R` → `shell:startup` 폴더에 `run.bat` 바로가기를 넣으세요.
+## 문제 해결
+
+| 증상 | 해결 |
+|------|------|
+| `run.bat`이 바로 꺼지고 아무 일도 없음 | Python이 PATH에 없음 → 1단계 다시 확인 |
+| 설치 중 오류가 난 뒤 계속 실행이 안 됨 | 폴더 안 `.venv` 폴더를 지우고 `run.bat` 다시 실행 |
+| 말풍선이 안 뜸 | 메모장에서 먼저 확인 → 메모장은 되는데 특정 앱만 안 되면 그 앱이 입력창 글을 공개하지 않는 경우 (카카오톡 등) |
+| 말풍선 위치가 엉뚱함 | 커서 위치를 알려주지 않는 앱(크롬 등)은 마우스 위치 위에 뜸 |
+| `Ctrl+Alt+K`가 안 먹힘 | 다른 프로그램이 같은 단축키를 쓰는지 확인, 관리자 권한으로 실행된 창에서는 동작하지 않음 |
+| 두 번 실행돼서 말풍선이 겹침 | `stop.bat` 실행 후 `run.bat` 한 번만 실행 |
 
 ## 기능
 
