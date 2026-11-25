@@ -1,0 +1,4 @@
+kiwipiepy
+pynput
+pyperclip
+uiautomation
