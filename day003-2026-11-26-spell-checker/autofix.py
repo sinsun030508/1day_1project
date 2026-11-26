@@ -6,6 +6,7 @@ import time
 import pyperclip
 from pynput import keyboard
 
+from single_instance import ensure_single
 from spell_fix import check_diff
 
 HOTKEY = "<ctrl>+<alt>+k"
@@ -48,6 +49,7 @@ def on_hotkey():
 
 
 if __name__ == "__main__":
+    ensure_single("autofix")  # 두 번 켜면 단축키 한 번에 교정이 두 번 돈다
     print(f"실행 중 — 텍스트 선택 후 {HOTKEY} (종료: Ctrl+C)")
     with keyboard.GlobalHotKeys({HOTKEY: on_hotkey}) as listener:
         listener.join()

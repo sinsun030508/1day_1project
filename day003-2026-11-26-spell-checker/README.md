@@ -83,7 +83,7 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 | 말풍선이 안 뜸 | 메모장에서 먼저 확인 → 메모장은 되는데 특정 앱만 안 되면 그 앱이 입력창 글을 공개하지 않는 경우 (카카오톡 등) |
 | 말풍선 위치가 엉뚱함 | 커서 위치를 알려주지 않는 앱(크롬 등)은 마우스 위치 위에 뜸 |
 | `Ctrl+Alt+K`가 안 먹힘 | 다른 프로그램이 같은 단축키를 쓰는지 확인, 관리자 권한으로 실행된 창에서는 동작하지 않음 |
-| 두 번 실행돼서 말풍선이 겹침 | `stop.bat` 실행 후 `run.bat` 한 번만 실행 |
+| 말풍선이 여러 개 겹쳐 보임 | 옛 버전이 남아 있는 경우입니다. `stop.bat` 실행 후 `run.bat`을 한 번 실행하세요. 이제 두 번 켜도 두 번째는 저절로 꺼집니다 |
 
 ## 기능
 
@@ -118,6 +118,7 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 ```
 | `autofix.py` | 텍스트를 선택하고 `Ctrl+Alt+K`를 누르면 교정된 문장으로 바로 바꿈 |
 | `spell_fix.py` | 교정 엔진. 단독으로 `python spell_fix.py "문장"` 실행 가능 |
+| `single_instance.py` | 같은 프로그램이 두 번 켜지지 않게 막음 (말풍선 겹침 방지) |
 
 예시:
 
@@ -140,6 +141,7 @@ python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.
 
 ## 참고
 
+- `run.bat`은 켜기 전에 이미 돌고 있는 것을 먼저 끕니다. 코드를 고친 뒤 다시 실행하면 옛 버전이 남지 않습니다.
 - `League of Legends` 창이 앞에 있으면 검사를 멈춥니다.
 - 카카오톡처럼 자체 입력창을 쓰는 앱은 글을 읽지 못할 수 있습니다.
 - 커서 위치를 알려주지 않는 앱(크롬 등)에서는 말풍선이 마우스 위치 위에 뜹니다.

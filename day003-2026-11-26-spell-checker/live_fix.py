@@ -10,6 +10,7 @@ import tkinter as tk
 import uiautomation as auto
 from pynput import keyboard
 
+from single_instance import ensure_single
 from spell_fix import check, check_diff
 
 PAUSE_TITLES = ("League of Legends",)       # 이 창이 앞에 있으면 검사 중지
@@ -163,6 +164,7 @@ def poll():
 
 
 if __name__ == "__main__":
+    ensure_single("live_fix")  # 두 번 켜면 말풍선이 겹치므로 먼저 막는다
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 고해상도 좌표 보정
     except Exception:

@@ -10,6 +10,9 @@ if not exist ".venv\Scripts\python.exe" (
   if errorlevel 1 goto error
 )
 
+rem 이미 떠 있는 것을 먼저 끈다 (옛 버전이 남아 말풍선이 겹치는 것 방지)
+call "%~dp0stop.bat" >nul
+
 start "" ".venv\Scripts\pythonw.exe" live_fix.py
 start "" ".venv\Scripts\pythonw.exe" autofix.py
 exit /b 0
