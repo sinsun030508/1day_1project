@@ -6,7 +6,7 @@ import time
 import pyperclip
 from pynput import keyboard
 
-from spell_fix import check
+from spell_fix import check_diff
 
 HOTKEY = "<ctrl>+<alt>+k"
 MOD = keyboard.Key.cmd if platform.system() == "Darwin" else keyboard.Key.ctrl
@@ -31,11 +31,11 @@ def fix_selection():
     text = pyperclip.paste()
 
     if text:
-        fixed, changes = check(text)
-        if changes:
+        fixed, segments = check_diff(text)
+        if segments:
             pyperclip.copy(fixed)
             send("v")  # 교정본으로 덮어쓰기
-            print("교정:", ", ".join(f"{a}→{b}" for a, b in changes))
+            print("교정:", ", ".join(f"{s['before']}→{s['after']}" for s in segments))
         else:
             print("고칠 곳 없음")
 

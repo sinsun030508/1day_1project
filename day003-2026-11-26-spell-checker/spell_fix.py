@@ -1,6 +1,8 @@
 """맞춤법 자동 교정기 — 규칙 기반 (1일 1프로젝트)"""
+import difflib
 import re
 import sys
+import unicodedata
 
 # 1) 단어 사전: 자주 틀리는 표기 → 표준어
 WORDS = {
@@ -67,13 +69,83 @@ def check(text):
     return spaced, changes
 
 
+def _expand_to_word(text, start, end):
+    """바뀐 글자만 집으면 조사 한 글자처럼 보이므로 띄어쓰기 단위까지 넓힌다."""
+    while start > 0 and not text[start - 1].isspace():
+        start -= 1
+    while end < len(text) and not text[end].isspace():
+        end += 1
+    return start, end
+
+
+def diff_segments(original, fixed):
+    """원문과 교정문을 비교해 바뀐 구간을 찾는다.
+
+    [{"before": 틀린 말, "after": 고친 말, "start": n, "end": m}]
+    start/end는 교정문(fixed) 기준 인덱스라, 그대로 잘라서 강조하면 된다.
+    """
+    merged = []
+    for tag, a1, a2, b1, b2 in difflib.SequenceMatcher(None, original, fixed, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        a1, a2 = _expand_to_word(original, a1, a2)
+        b1, b2 = _expand_to_word(fixed, b1, b2)
+        if merged and b1 <= merged[-1][3]:  # 한 단어 안에서 두 군데가 바뀐 경우
+            pa1, pa2, pb1, pb2 = merged[-1]
+            merged[-1] = (min(pa1, a1), max(pa2, a2), min(pb1, b1), max(pb2, b2))
+        else:
+            merged.append((a1, a2, b1, b2))
+    segments = []
+    for a1, a2, b1, b2 in merged:
+        before, after = original[a1:a2], fixed[b1:b2]
+        # 글자는 그대로고 띄어쓰기만 달라졌으면 맞춤법 오류와 구분해서 표시한다
+        kind = "spacing" if before.replace(" ", "") == after.replace(" ", "") else "spelling"
+        segments.append({"before": before, "after": after, "start": b1, "end": b2, "kind": kind})
+    return segments
+
+
+def check_diff(text):
+    """교정문과 '어디가 어떻게 바뀌었는지' 목록을 함께 돌려준다."""
+    fixed, _ = check(text)
+    return fixed, diff_segments(text, fixed)
+
+
+def mark_line(text, segments, key="before"):
+    """틀린 부분 아래에 ^^^ 를 그린 줄 (터미널 표시용).
+
+    맞춤법은 ^, 띄어쓰기는 ~로 구분한다.
+    한글은 터미널에서 두 칸을 차지하므로 글자 폭만큼 찍어야 자리가 맞는다.
+    """
+    hit = [" "] * len(text)
+    pos = 0
+    for seg in segments:
+        found = text.find(seg[key], pos)
+        if found < 0:
+            continue
+        mark = "~" if seg["kind"] == "spacing" else "^"
+        for i in range(found, found + len(seg[key])):
+            hit[i] = mark
+        pos = found + len(seg[key])
+    marks = ""
+    for ch, mark in zip(text, hit):
+        width = 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+        marks += mark * width
+    return marks.rstrip()
+
+
 def main():
     lines = [" ".join(sys.argv[1:])] if len(sys.argv) > 1 else iter(lambda: input("> "), "")
     for line in lines:
-        fixed, changes = check(line)
+        fixed, segments = check_diff(line)
+        if not segments:
+            print("고칠 곳 없음")
+            continue
+        print("원문:", line)
+        print("     ", mark_line(line, segments, "before"))
         print("교정:", fixed)
-        for before, after in changes:
-            print(f"  - {before} → {after}")
+        print("     ", mark_line(fixed, segments, "after"))
+        for seg in segments:
+            print(f"  - {seg['before']} → {seg['after']}")
 
 
 if __name__ == "__main__":
