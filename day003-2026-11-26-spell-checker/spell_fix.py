@@ -69,6 +69,25 @@ def check(text):
     return spaced, changes
 
 
+# 코드·마크업·주소: 여기에 걸리면 한국어 문장이 아니라고 보고 검사하지 않는다
+CODE_LIKE = re.compile(r"https?://|www\.|<[^>]*>|</|/>|```|[`{}]|\[[^\]]*\]\(|=\s*[\"']")
+HANGUL = re.compile(r"[가-힣]")
+# 마크다운 글머리(`- `, `## `, `1. `)는 본문이 아니므로 떼고 검사한다
+LIST_PREFIX = re.compile(r"^\s*(?:[-*+>]|#{1,6}|\d+[.)])\s+")
+
+
+def strip_prefix(text):
+    return LIST_PREFIX.sub("", text)
+
+
+def looks_like_prose(text, min_ratio=0.4):
+    """한국어 문장인지. HTML 태그·링크·코드 줄에 띄어쓰기 교정을 하면 오히려 망가진다."""
+    stripped = re.sub(r"\s", "", text)
+    if len(stripped) < 2 or CODE_LIKE.search(text):
+        return False
+    return len(HANGUL.findall(stripped)) / len(stripped) >= min_ratio
+
+
 def _expand_to_word(text, start, end):
     """바뀐 글자만 집으면 조사 한 글자처럼 보이므로 띄어쓰기 단위까지 넓힌다."""
     while start > 0 and not text[start - 1].isspace():
@@ -90,11 +109,26 @@ def diff_segments(original, fixed):
             continue
         a1, a2 = _expand_to_word(original, a1, a2)
         b1, b2 = _expand_to_word(fixed, b1, b2)
-        if merged and b1 <= merged[-1][3]:  # 한 단어 안에서 두 군데가 바뀐 경우
+        # 한 단어 안에서 두 군데가 바뀌었거나, '추천 해주는' → '추천해 주는'처럼
+        # 원문 범위가 겹치면 한 덩어리로 합친다
+        if merged and (b1 <= merged[-1][3] or a1 < merged[-1][1]):
             pa1, pa2, pb1, pb2 = merged[-1]
             merged[-1] = (min(pa1, a1), max(pa2, a2), min(pb1, b1), max(pb2, b2))
         else:
             merged.append((a1, a2, b1, b2))
+    # '추천 해주는' → '추천해 주는': 글자가 띄어쓰기를 넘어간 두 덩어리는 합쳐야 띄어쓰기로 읽힌다
+    def spacing_only(a1, a2, b1, b2):
+        return original[a1:a2].replace(" ", "") == fixed[b1:b2].replace(" ", "")
+
+    i = 0
+    while i < len(merged) - 1:
+        left, right = merged[i], merged[i + 1]
+        joined = (left[0], right[1], left[2], right[3])
+        if not spacing_only(*left) and not spacing_only(*right) and spacing_only(*joined):
+            merged[i:i + 2] = [joined]
+        else:
+            i += 1
+
     segments = []
     for a1, a2, b1, b2 in merged:
         before, after = original[a1:a2], fixed[b1:b2]
